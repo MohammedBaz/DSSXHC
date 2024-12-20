@@ -10,29 +10,23 @@ with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
 # Initialize the LLM (replace with your API key)
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)
+llm = OpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2)
 
 # --- Define Prompt Template ---
 prompt_template = """
-You are a hospital management consultant. Analyze the following data for Hospital X:
+You are a hospital management consultant. Analyze the following data for {hospital_name}:
 
-Bed Capacity: {bed_capacity}
-Occupancy Rate: {occupancy_rate}
-Surgery Department:
-  - Occupancy: {surgery_occupancy}%
-  - Average Stay: {surgery_avg_stay} days
-  - Doctors: {surgery_doctors}
-  - Nurses: {surgery_nurses}
+{hospital_data_str}
 
 User's Question: {question}
 
 Based on this data, provide a concise recommendation. Consider factors like occupancy rates, staffing levels, and length of stay.
-Explain your reasoning, focusing especially on the surgery department's high occupancy and short stay.
+Explain your reasoning.
 """
 
 # --- Create LangChain Chain ---
 prompt = PromptTemplate(
-    input_variables=["bed_capacity", "occupancy_rate", "surgery_occupancy", "surgery_avg_stay", "surgery_doctors", "surgery_nurses", "question"],
+    input_variables=["hospital_name", "hospital_data_str", "question"],
     template=prompt_template
 )
 chain = LLMChain(llm=llm, prompt=prompt)
@@ -41,29 +35,38 @@ chain = LLMChain(llm=llm, prompt=prompt)
 st.title("Hospital Bed Capacity Advisor")
 
 # Sidebar for Hospital Selection and Question
-hospital_name = st.sidebar.selectbox("Select Hospital", list(hospital_data.keys()))
+# Create a list of hospital names for the selectbox
+hospital_names = [hospital["name"] for hospital in hospital_data["hospitals"]]
+hospital_name = st.sidebar.selectbox("Select Hospital", hospital_names)
+
 user_question = st.sidebar.text_area("Enter your question:", "Do you think it would be better to increase the bed capacity of hospital x to 100?")
 
 # --- Get LLM Response ---
 if st.sidebar.button("Get Recommendation"):
-    data = hospital_data[hospital_name]
-    surgery_data = data["departments"]["surgery"]
+    # Find the selected hospital's data
+    selected_hospital_data = None
+    for hospital in hospital_data["hospitals"]:
+        if hospital["name"] == hospital_name:
+            selected_hospital_data = hospital
+            break
 
-    with st.spinner("Analyzing data and generating recommendation..."):
-        response = chain.run(
-            bed_capacity=data["bed_capacity"],
-            occupancy_rate=data["occupancy_rate"],
-            surgery_occupancy=surgery_data["occupancy_percentage"],
-            surgery_avg_stay=surgery_data["avg_stay_days"],
-            surgery_doctors=surgery_data["doctors"],
-            surgery_nurses=surgery_data["nurses"],
-            question=user_question
-        )
+    if selected_hospital_data is None:
+        st.error(f"Data for {hospital_name} not found.")
+    else:
+        # Convert the selected hospital's data to a formatted string
+        hospital_data_str = json.dumps(selected_hospital_data, indent=2)
 
-    # --- Display Results ---
-    st.subheader("Recommendation:")
-    st.write(response)
+        with st.spinner("Analyzing data and generating recommendation..."):
+            response = chain.run(
+                hospital_name=hospital_name,
+                hospital_data_str=hospital_data_str,
+                question=user_question
+            )
 
-    # --- Optional: Display Data ---
-    if st.checkbox("Show Hospital Data"):
-        st.write(data)
+        # --- Display Results ---
+        st.subheader("Recommendation:")
+        st.write(response)
+
+        # --- Optional: Display Data ---
+        if st.checkbox("Show Hospital Data"):
+            st.json(hospital_data_str)
