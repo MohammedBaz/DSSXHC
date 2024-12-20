@@ -17,8 +17,8 @@ import re
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
-chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) # Use for data-specific analysis
+llm = OpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2)  # Use for general questions and classification
+chat_llm = ChatOpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2) # Use for data-specific analysis
 
 # --- Define Prompt Templates ---
 # General Question Prompt Template
@@ -32,6 +32,23 @@ general_prompt = PromptTemplate(
     template=general_prompt_template
 )
 general_chain = LLMChain(llm=llm, prompt=general_prompt)
+
+# Classification Prompt Template
+classification_prompt_template = """
+You are an AI that classifies questions based on whether they require a detailed analysis of hospital data or not.
+Classify the following question:
+
+Question: {question}
+
+Answer with 'simple' if the question can be answered directly without data analysis, or 'analysis' if it requires detailed data analysis.
+
+Answer:
+"""
+classification_prompt = PromptTemplate(
+    input_variables=["question"],
+    template=classification_prompt_template
+)
+classification_chain = LLMChain(llm=llm, prompt=classification_prompt)
 
 # Hospital Analysis Prompt Template
 system_message_prompt = SystemMessagePromptTemplate.from_template(
@@ -125,7 +142,10 @@ if prompt := st.chat_input("Enter your question here"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Check if the question is about waiting time or a specific hospital
+    # Classify the question type
+    question_type = classification_chain.run(question=prompt).lower()
+
+    # Check if the question is about waiting time
     if "waiting time" in prompt.lower():
         # Calculate and display average waiting time
         wait_times = []
@@ -160,85 +180,65 @@ if prompt := st.chat_input("Enter your question here"):
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": "Could not calculate average waiting time due to lack of data."})
 
-    else:
+    # Process questions that require data analysis
+    elif question_type == "analysis":
         # Check if the question is about a specific hospital
-        match = re.search(r"hospital\s*(\w+)", prompt, re.IGNORECASE)  # Improved regex
+        match = re.search(r"hospital\s*(\w+)", prompt, re.IGNORECASE)
         if match:
             hospital_name = f"Hospital{match.group(1)}"
+            hospital_data_str = json.dumps(hospital_data, indent=2)
 
-            # Check if it's a simple information request
-            if prompt.lower().startswith("where is") or prompt.lower().startswith("what is the location of"):
-                # Find the hospital
-                selected_hospital_data = None
-                for hospital in hospital_data["hospitals"]:
-                    if hospital["name"] == hospital_name:
-                        selected_hospital_data = hospital
-                        break
-                if selected_hospital_data:
-                    location = selected_hospital_data["location"]
-                    with st.chat_message("assistant"):
-                        st.write(f"{hospital_name} is located in {location['city']}, {location['region']}, at {location['address']}.")
-                    # Add assistant response to chat history
-                    st.session_state.messages.append({"role": "assistant", "content": f"{hospital_name} is located in {location['city']}, {location['region']}, at {location['address']}."})
-                else:
-                    with st.chat_message("assistant"):
-                        st.write(f"Could not find information for {hospital_name}.")
-                    # Add assistant response to chat history
-                    st.session_state.messages.append({"role": "assistant", "content": f"Could not find information for {hospital_name}."})
+            # Find the selected hospital's data
+            selected_hospital_data = None
+            for hospital in hospital_data["hospitals"]:
+                if hospital["name"] == hospital_name:
+                    selected_hospital_data = hospital
+                    break
+
+            # Display assistant response in chat message container only if hospital is found
+            if selected_hospital_data:
+                with st.chat_message("assistant"):
+                    with st.spinner("Analyzing data and generating recommendation..."):
+                        response = analysis_chain.run(
+                            hospital_name=hospital_name,
+                            hospital_data_str=hospital_data_str,
+                            question=prompt
+                        )
+                        st.markdown(response)
+
+                        # --- Charts ---
+                        st.subheader("Data Visualization")
+
+                        # Chart 1: Bed Capacity vs. Inpatient Admissions
+                        df_bed_admissions = pd.DataFrame({
+                            "Department": [dept for dept in selected_hospital_data["departments"]],
+                            "Bed Capacity": [selected_hospital_data["bed_capacity"] / len(selected_hospital_data["departments"]) for _ in selected_hospital_data["departments"]],
+                            "Inpatient Admissions": [selected_hospital_data["departments"][dept]["inpatient_admissions_daily"] for dept in selected_hospital_data["departments"]]
+                        })
+
+                        fig_bed_admissions = px.bar(df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
+                                                     title=f"Bed Capacity vs. Inpatient Admissions by Department in {hospital_name}",
+                                                     barmode="group")
+                        st.plotly_chart(fig_bed_admissions)
+
+                        # Chart 2: Doctor and Nurse Ratios
+                        df_staffing = pd.DataFrame({
+                            "Department": [dept for dept in selected_hospital_data["departments"]],
+                            "Doctors": [selected_hospital_data["departments"][dept]["doctors"] for dept in selected_hospital_data["departments"]],
+                            "Nurses": [selected_hospital_data["departments"][dept]["nurses"] for dept in selected_hospital_data["departments"]]
+                        })
+
+                        fig_staffing = px.bar(df_staffing, x="Department", y=["Doctors", "Nurses"],
+                                               title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
+                                               barmode="group")
+                        st.plotly_chart(fig_staffing)
+
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
 
             else:
-                hospital_data_str = json.dumps(hospital_data, indent=2)
-                # Find the selected hospital's data
-                selected_hospital_data = None
-                for hospital in hospital_data["hospitals"]:
-                    if hospital["name"] == hospital_name:
-                        selected_hospital_data = hospital
-                        break
-
-                # Display assistant response in chat message container only if hospital is found
-                if selected_hospital_data:
-                    with st.chat_message("assistant"):
-                        with st.spinner("Analyzing data and generating recommendation..."):
-                            response = analysis_chain.run(
-                                hospital_name=hospital_name,
-                                hospital_data_str=hospital_data_str,
-                                question=prompt
-                            )
-                            st.markdown(response)
-
-                            # --- Charts ---
-                            st.subheader("Data Visualization")
-
-                            # Chart 1: Bed Capacity vs. Inpatient Admissions
-                            df_bed_admissions = pd.DataFrame({
-                                "Department": [dept for dept in selected_hospital_data["departments"]],
-                                "Bed Capacity": [selected_hospital_data["bed_capacity"] / len(selected_hospital_data["departments"]) for _ in selected_hospital_data["departments"]],
-                                "Inpatient Admissions": [selected_hospital_data["departments"][dept]["inpatient_admissions_daily"] for dept in selected_hospital_data["departments"]]
-                            })
-
-                            fig_bed_admissions = px.bar(df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
-                                                         title=f"Bed Capacity vs. Inpatient Admissions by Department in {hospital_name}",
-                                                         barmode="group")
-                            st.plotly_chart(fig_bed_admissions)
-
-                            # Chart 2: Doctor and Nurse Ratios
-                            df_staffing = pd.DataFrame({
-                                "Department": [dept for dept in selected_hospital_data["departments"]],
-                                "Doctors": [selected_hospital_data["departments"][dept]["doctors"] for dept in selected_hospital_data["departments"]],
-                                "Nurses": [selected_hospital_data["departments"][dept]["nurses"] for dept in selected_hospital_data["departments"]]
-                            })
-
-                            fig_staffing = px.bar(df_staffing, x="Department", y=["Doctors", "Nurses"],
-                                                   title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
-                                                   barmode="group")
-                            st.plotly_chart(fig_staffing)
-
-                    # Add assistant response to chat history
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-
-                else:
-                    with st.chat_message("assistant"):
-                        st.write(f"Could not find data for {hospital_name}.")
+                with st.chat_message("assistant"):
+                    st.write(f"Could not find data for {hospital_name}.")
 
         else:
             # Use the general chain for general questions
@@ -248,3 +248,12 @@ if prompt := st.chat_input("Enter your question here"):
                     st.write(response)
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
+
+    # Process simple questions
+    else:
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = general_chain.run(question=prompt)
+                st.write(response)
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
