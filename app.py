@@ -12,18 +12,13 @@ from langchain.prompts.chat import (
 )
 from langchain.chat_models import ChatOpenAI
 import re
-from fpdf import FPDF
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
 
 # --- Load Data and Initialize LLM ---
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
-chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) # Use for data-specific analysis
+llm = OpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2)  # Use for general questions
+chat_llm = ChatOpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2) # Use for data-specific analysis
 
 # --- Define Prompt Templates ---
 # General Question Prompt Template
@@ -111,56 +106,6 @@ chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_mes
 
 analysis_chain = LLMChain(llm=chat_llm, prompt=chat_prompt)
 
-# --- Helper Functions ---
-def create_pdf_report(hospital_name, analysis_text, fig_bed_admissions, fig_staffing):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-
-    # Add title
-    pdf.cell(200, 10, txt=f"Hospital Analysis Report: {hospital_name}", ln=True, align='C')
-    pdf.ln(10)
-
-    # Add analysis text
-    pdf.multi_cell(0, 10, txt=analysis_text)
-
-    # Save Plotly figures as images
-    fig_bed_admissions.write_image("bed_admissions_plot.png")
-    fig_staffing.write_image("staffing_plot.png")
-
-    # Add plots to PDF
-    pdf.image("bed_admissions_plot.png", x=10, y=None, w=180)
-    pdf.image("staffing_plot.png", x=10, y=None, w=180)
-
-    pdf_filename = f"{hospital_name}_report.pdf"
-    pdf.output(pdf_filename)
-    return pdf_filename
-
-def send_email(sender_email, sender_password, recipient_email, subject, body, attachment_filename=None):
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = recipient_email
-    msg["Subject"] = subject
-
-    msg.attach(MIMEText(body, "plain"))
-
-    if attachment_filename:
-        with open(attachment_filename, "rb") as attachment:
-            part = MIMEApplication(attachment.read(), Name=attachment_filename)
-        part['Content-Disposition'] = f'attachment; filename="{attachment_filename}"'
-        msg.attach(part)
-
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)  # Update with your email provider's SMTP server
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, msg.as_string())
-        server.quit()
-        return True
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
-
 # --- Streamlit Interface ---
 st.title("Healthcare Advisor")
 
@@ -199,7 +144,7 @@ if prompt := st.chat_input("Enter your question here"):
                 st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days."})
-
+            
             # Check if the question is about the hospital with the highest waiting time
             if "highest waiting time" in prompt.lower():
                 highest_waiting_time_hospital = max(hospital_waiting_times, key=hospital_waiting_times.get)
@@ -265,29 +210,6 @@ if prompt := st.chat_input("Enter your question here"):
                                            title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
                                            barmode="group")
                     st.plotly_chart(fig_staffing)
-
-                # Ask the user if they want a PDF or email
-                if st.button("Generate PDF Report"):
-                    pdf_filename = create_pdf_report(hospital_name, response, fig_bed_admissions, fig_staffing)
-                    st.success(f"PDF report generated: {pdf_filename}")
-
-                if st.button("Send Email"):
-                    sender_email = st.text_input("Enter your email:")
-                    sender_password = st.text_input("Enter your email password:", type="password")
-                    recipient_email = st.text_input("Enter recipient email:")
-
-                    if sender_email and sender_password and recipient_email:
-                        with st.spinner("Sending email..."):
-                            pdf_filename = create_pdf_report(hospital_name, response, fig_bed_admissions, fig_staffing)
-                            success = send_email(sender_email, sender_password, recipient_email,
-                                                 f"Hospital Analysis Report: {hospital_name}",
-                                                 "Please find the attached report.", pdf_filename)
-                            if success:
-                                st.success("Email sent successfully!")
-                            else:
-                                st.error("Failed to send email.")
-                    else:
-                        st.warning("Please fill in all email fields.")
 
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
