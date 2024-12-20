@@ -6,3 +6,4 @@ tiktoken
 typing-extensions
 plotly
 fpdf
+smtplib
