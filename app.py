@@ -11,6 +11,7 @@ from langchain.prompts.chat import (
     HumanMessagePromptTemplate,
 )
 from langchain.chat_models import ChatOpenAI
+import re
 
 # --- Load Data and Initialize LLM ---
 with open("hospital_data.json", "r") as f:
@@ -86,22 +87,48 @@ user_question = st.sidebar.text_area("Enter your question:", "What is the averag
 # --- Get LLM Response ---
 if st.sidebar.button("Get Answer"):
     if hospital_name == "All Healthcare Centers":
-        if "waiting time" in user_question.lower():
-          # Extract waiting time information if question is relevant
-          wait_times = []
-          for hospital in hospital_data["hospitals"]:
-            total_beds = hospital["bed_capacity"]
-            total_admissions = sum(hospital["departments"][dept]["inpatient_admissions_daily"] for dept in hospital["departments"])
-            if total_admissions > 0:  # Avoid division by zero
-                avg_wait_time = total_beds / total_admissions
-                wait_times.append(avg_wait_time)
+        # Check if the question is about a specific hospital
+        match = re.search(r"hospital\s*(\d+)", user_question, re.IGNORECASE)
+        if match:
+            hospital_number = match.group(1)
+            hospital_name = f"Hospital{hospital_number}"
 
-          if wait_times:
-              avg_wait_time_all = sum(wait_times) / len(wait_times)
-              st.subheader("Average Waiting Time:")
-              st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
-          else:
-              st.write("Could not calculate average waiting time due to lack of data.")
+            selected_hospital_data = None
+            for hospital in hospital_data["hospitals"]:
+                if hospital["name"] == hospital_name:
+                    selected_hospital_data = hospital
+                    break
+
+            if selected_hospital_data:
+                hospital_data_str = json.dumps(selected_hospital_data, indent=2)
+
+                with st.spinner("Analyzing data and generating recommendation..."):
+                    response = analysis_chain.run(
+                        hospital_name=hospital_name,
+                        hospital_data_str=hospital_data_str,
+                        question=user_question
+                    )
+                st.markdown(response)
+
+            else:
+                st.error(f"Data for {hospital_name} not found.")
+
+        elif "waiting time" in user_question.lower():
+            # Existing waiting time calculation for all centers
+            wait_times = []
+            for hospital in hospital_data["hospitals"]:
+                total_beds = hospital["bed_capacity"]
+                total_admissions = sum(hospital["departments"][dept]["inpatient_admissions_daily"] for dept in hospital["departments"])
+                if total_admissions > 0:
+                    avg_wait_time = total_beds / total_admissions
+                    wait_times.append(avg_wait_time)
+
+            if wait_times:
+                avg_wait_time_all = sum(wait_times) / len(wait_times)
+                st.subheader("Average Waiting Time:")
+                st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
+            else:
+                st.write("Could not calculate average waiting time due to lack of data.")
 
         else:
             # Use the general chain for general questions
@@ -109,8 +136,8 @@ if st.sidebar.button("Get Answer"):
                 response = general_chain.run(question=user_question)
             st.subheader("Answer:")
             st.write(response)
-
     else:
+        # Existing hospital specific analysis
         selected_hospital_data = None
         for hospital in hospital_data["hospitals"]:
             if hospital["name"] == hospital_name:
