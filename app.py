@@ -10,7 +10,7 @@ with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
 # Initialize the LLM (replace with your API key)
-llm = OpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2)
+llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)
 
 # --- Define Prompt Template ---
 prompt_template = """
