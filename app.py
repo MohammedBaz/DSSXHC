@@ -36,7 +36,7 @@ general_chain = LLMChain(llm=llm, prompt=general_prompt)
 # Hospital Analysis Prompt Template
 system_message_prompt = SystemMessagePromptTemplate.from_template(
     """
-    You are a hospital management consultant. Analyze the following data:
+    You are a hospital management consultant. Analyze the following data from these hospitals:
     {hospital_data_str}
     """
 )
@@ -68,11 +68,11 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     ## Further Considerations (Optional):
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
-    
+
     Example of a question and answer:
-    
+
     Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
-    
+
     Answer:
     ## Analysis:
     * The current bed capacity of Hospital X is 80.
@@ -99,7 +99,7 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
 
     * Analyze patient wait times in the surgery department.
     * Evaluate the efficiency of the surgical scheduling process.
-    
+
     """
 )
 chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
@@ -109,115 +109,67 @@ analysis_chain = LLMChain(llm=chat_llm, prompt=chat_prompt)
 # --- Streamlit Interface ---
 st.title("Healthcare Advisor")
 
-# Sidebar for Hospital Selection and Question
-hospital_names = [hospital["name"] for hospital in hospital_data["hospitals"]]
-hospital_names.insert(0, "All Healthcare Centers")  # Add an option for all centers
-hospital_name = st.sidebar.selectbox("Select Healthcare Center", hospital_names)
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-user_question = st.sidebar.text_area("Enter your question:", "What is the average waiting time in all healthcare centers in Taif?")
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# --- Get LLM Response ---
-if st.sidebar.button("Get Answer"):
-    if hospital_name == "All Healthcare Centers":
-        # Check if the question is about a specific hospital
-        match = re.search(r"hospital\s*(\d+)", user_question, re.IGNORECASE)
-        if match:
-            hospital_number = match.group(1)
-            hospital_name = f"Hospital{hospital_number}"
+# React to user input
+if prompt := st.chat_input("Enter your question here"):
+    # Display user message in chat message container
+    st.chat_message("user").markdown(prompt)
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-            selected_hospital_data = None
-            for hospital in hospital_data["hospitals"]:
-                if hospital["name"] == hospital_name:
-                    selected_hospital_data = hospital
-                    break
-
-            if selected_hospital_data:
-                hospital_data_str = json.dumps(selected_hospital_data, indent=2)
-
-                with st.spinner("Analyzing data and generating recommendation..."):
-                    response = analysis_chain.run(
-                        hospital_name=hospital_name,
-                        hospital_data_str=hospital_data_str,
-                        question=user_question
-                    )
-                st.markdown(response)
-
-            else:
-                st.error(f"Data for {hospital_name} not found.")
-
-        elif "waiting time" in user_question.lower():
-            # Existing waiting time calculation for all centers
-            wait_times = []
-            for hospital in hospital_data["hospitals"]:
-                total_beds = hospital["bed_capacity"]
-                total_admissions = sum(hospital["departments"][dept]["inpatient_admissions_daily"] for dept in hospital["departments"])
-                if total_admissions > 0:
-                    avg_wait_time = total_beds / total_admissions
-                    wait_times.append(avg_wait_time)
-
-            if wait_times:
-                avg_wait_time_all = sum(wait_times) / len(wait_times)
-                st.subheader("Average Waiting Time:")
-                st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
-            else:
-                st.write("Could not calculate average waiting time due to lack of data.")
-
-        else:
-            # Use the general chain for general questions
-            with st.spinner("Thinking..."):
-                response = general_chain.run(question=user_question)
-            st.subheader("Answer:")
-            st.write(response)
-    else:
-        # Existing hospital specific analysis
-        selected_hospital_data = None
-        for hospital in hospital_data["hospitals"]:
-            if hospital["name"] == hospital_name:
-                selected_hospital_data = hospital
-                break
-
-        if selected_hospital_data is None:
-            st.error(f"Data for {hospital_name} not found.")
-        else:
-            hospital_data_str = json.dumps(selected_hospital_data, indent=2)
-
+    # Check if the question is about a specific hospital
+    match = re.search(r"hospital\s*(\d+)", prompt, re.IGNORECASE)
+    if match:
+        hospital_number = match.group(1)
+        hospital_name = f"Hospital{hospital_number}"
+        hospital_data_str = json.dumps(hospital_data, indent=2)
+        # Display assistant response in chat message container
+        with st.chat_message("assistant"):
             with st.spinner("Analyzing data and generating recommendation..."):
                 response = analysis_chain.run(
                     hospital_name=hospital_name,
                     hospital_data_str=hospital_data_str,
-                    question=user_question
+                    question=prompt
                 )
+                st.markdown(response)
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
-            # --- Display Results ---
-            st.markdown(response)
+    elif "waiting time" in prompt.lower():
+        # Calculate and display average waiting time
+        wait_times = []
+        for hospital in hospital_data["hospitals"]:
+            total_beds = hospital["bed_capacity"]
+            total_admissions = sum(hospital["departments"][dept]["inpatient_admissions_daily"] for dept in hospital["departments"])
+            if total_admissions > 0:
+                avg_wait_time = total_beds / total_admissions
+                wait_times.append(avg_wait_time)
 
-            # --- Charts ---
-            st.subheader("Data Visualization")
+        if wait_times:
+            avg_wait_time_all = sum(wait_times) / len(wait_times)
+            with st.chat_message("assistant"):
+                st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
+            # Add assistant response to chat history
+            st.session_state.messages.append({"role": "assistant", "content": f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days."})
+        else:
+            with st.chat_message("assistant"):
+                st.write("Could not calculate average waiting time due to lack of data.")
+            # Add assistant response to chat history
+            st.session_state.messages.append({"role": "assistant", "content": "Could not calculate average waiting time due to lack of data."})
 
-            # Chart 1: Bed Capacity vs. Inpatient Admissions
-            df_bed_admissions = pd.DataFrame({
-                "Department": [dept for dept in selected_hospital_data["departments"]],
-                "Bed Capacity": [selected_hospital_data["bed_capacity"] / len(selected_hospital_data["departments"]) for _ in selected_hospital_data["departments"]],
-                "Inpatient Admissions": [selected_hospital_data["departments"][dept]["inpatient_admissions_daily"] for dept in selected_hospital_data["departments"]]
-            })
-
-            fig_bed_admissions = px.bar(df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
-                                         title="Bed Capacity vs. Inpatient Admissions by Department",
-                                         barmode="group")
-            st.plotly_chart(fig_bed_admissions)
-
-            # Chart 2: Doctor and Nurse Ratios
-            df_staffing = pd.DataFrame({
-                "Department": [dept for dept in selected_hospital_data["departments"]],
-                "Doctors": [selected_hospital_data["departments"][dept]["doctors"] for dept in selected_hospital_data["departments"]],
-                "Nurses": [selected_hospital_data["departments"][dept]["nurses"] for dept in selected_hospital_data["departments"]]
-            })
-
-            fig_staffing = px.bar(df_staffing, x="Department", y=["Doctors", "Nurses"],
-                                   title="Doctor and Nurse Ratios by Department",
-                                   barmode="group")
-            st.plotly_chart(fig_staffing)
-
-            # --- Optional: Display Data ---
-            if st.checkbox("Show Hospital Data"):
-                st.json(hospital_data_str)
+    else:
+        # Use the general chain for general questions
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = general_chain.run(question=prompt)
+                st.write(response)
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
