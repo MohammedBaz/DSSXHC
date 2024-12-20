@@ -1,0 +1,155 @@
+{
+  "hospitals": [
+    {
+      "name": "Hospital1",
+      "location": {
+        "city": "Taif",
+        "region": "Makkah",
+        "zip_code": "21944",
+        "latitude": 21.2703,
+        "longitude": 40.4123,
+        "address": "Al Mathnah, Taif"
+      },
+      "bed_capacity": 400,
+      "departments": {
+        "emergency": {
+          "doctors": 20,
+          "nurses": 50,
+          "outpatient_visits_daily": 200,
+          "inpatient_admissions_daily": 40
+        },
+        "cardiology": {
+          "doctors": 15,
+          "nurses": 40,
+          "outpatient_visits_daily": 60,
+          "inpatient_admissions_daily": 20,
+          "avg_stay_days": 6
+        },
+        "surgery": {
+          "doctors": 18,
+          "nurses": 60,
+          "outpatient_visits_daily": 40,
+          "inpatient_admissions_daily": 25,
+          "avg_stay_days": 4
+        },
+        "internal_medicine": {
+          "doctors": 12,
+          "nurses": 35,
+          "outpatient_visits_daily": 80,
+          "inpatient_admissions_daily": 15,
+          "avg_stay_days": 7
+        },
+        "pediatrics": {
+          "doctors": 10,
+          "nurses": 40,
+          "outpatient_visits_daily": 70,
+          "inpatient_admissions_daily": 15,
+          "avg_stay_days": 3
+        }
+      }
+    },
+    {
+      "name": "Hospital2",
+      "location": {
+        "city": "Taif",
+        "region": "Makkah",
+        "zip_code": "26522",
+        "latitude": 21.4448,
+        "longitude": 40.5128,
+        "address": "Al Huwayah, Taif"
+      },
+      "bed_capacity": 250,
+      "departments": {
+        "emergency": {
+          "doctors": 12,
+          "nurses": 35,
+          "outpatient_visits_daily": 150,
+          "inpatient_admissions_daily": 30
+        },
+        "orthopedics": {
+          "doctors": 8,
+          "nurses": 25,
+          "outpatient_visits_daily": 50,
+          "inpatient_admissions_daily": 10,
+          "avg_stay_days": 5
+        },
+        "obstetrics_gynecology": {
+          "doctors": 10,
+          "nurses": 30,
+          "outpatient_visits_daily": 90,
+          "inpatient_admissions_daily": 20,
+          "avg_stay_days": 3
+        },
+        "general_medicine" : {
+          "doctors": 7,
+          "nurses": 30,
+          "outpatient_visits_daily": 40,
+          "inpatient_admissions_daily": 5,
+          "avg_stay_days": 4
+        }
+      }
+    }
+  ],
+  "clinics": [
+    {
+      "name": "Clinic1",
+      "location": {
+        "city": "Taif",
+        "region": "Makkah",
+        "zip_code": "26513",
+        "latitude": 21.2654,
+        "longitude": 40.4088,
+        "address": "Ash Sharqiyyah, Taif"
+      },
+      "doctors": 4,
+      "nurses": 8,
+      "outpatient_visits_daily": 60,
+      "specialties": ["general_medicine", "pediatrics", "immunization"]
+    },
+    {
+      "name": "Clinic2",
+      "location": {
+        "city": "Taif",
+        "region": "Makkah",
+        "zip_code": "26576",
+        "latitude": 21.4762,
+        "longitude": 40.3683,
+        "address": "Qurwa, Taif"
+      },
+      "doctors": 3,
+      "nurses": 5,
+      "outpatient_visits_daily": 45,
+      "specialties": ["family_medicine", "dermatology"]
+    }
+  ],
+  "polyclinics": [
+    {
+      "name": "Polyclinic1",
+      "location": {
+        "city": "Taif",
+        "region": "Makkah",
+        "zip_code": "26523",
+        "latitude": 21.4365,
+        "longitude": 40.4883,
+        "address": "As Salamah, Taif"
+      },
+      "departments": {
+        "radiology": {
+          "doctors": 3,
+          "nurses": 6,
+          "outpatient_visits_daily": 40
+        },
+        "ophthalmology": {
+          "doctors": 2,
+          "nurses": 4,
+          "outpatient_visits_daily": 35
+        },
+        "dental": {
+          "doctors": 4,
+          "nurses": 4,
+          "outpatient_visits_daily": 50
+        }
+      }
+    }
+  ]
+}
