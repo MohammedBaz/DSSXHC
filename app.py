@@ -17,7 +17,7 @@ import re
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
+llm = OpenAI(openai_api_key="st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
 chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) # Use for data-specific analysis
 
 # --- Define Prompt Templates ---
@@ -125,25 +125,8 @@ if prompt := st.chat_input("Enter your question here"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Check if the question is about a specific hospital
-    match = re.search(r"hospital\s*(\d+)", prompt, re.IGNORECASE)
-    if match:
-        hospital_number = match.group(1)
-        hospital_name = f"Hospital{hospital_number}"
-        hospital_data_str = json.dumps(hospital_data, indent=2)
-        # Display assistant response in chat message container
-        with st.chat_message("assistant"):
-            with st.spinner("Analyzing data and generating recommendation..."):
-                response = analysis_chain.run(
-                    hospital_name=hospital_name,
-                    hospital_data_str=hospital_data_str,
-                    question=prompt
-                )
-                st.markdown(response)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-    elif "waiting time" in prompt.lower():
+    # Check if the question is about waiting time or a specific hospital
+    if "waiting time" in prompt.lower():
         # Calculate and display average waiting time
         wait_times = []
         for hospital in hospital_data["hospitals"]:
@@ -166,10 +149,29 @@ if prompt := st.chat_input("Enter your question here"):
             st.session_state.messages.append({"role": "assistant", "content": "Could not calculate average waiting time due to lack of data."})
 
     else:
-        # Use the general chain for general questions
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = general_chain.run(question=prompt)
-                st.write(response)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        # Check if the question is about a specific hospital
+        match = re.search(r"hospital\s*(\w+)", prompt, re.IGNORECASE)  # Improved regex
+        if match:
+            hospital_name = f"Hospital{match.group(1)}"
+            hospital_data_str = json.dumps(hospital_data, indent=2)
+
+            # Display assistant response in chat message container
+            with st.chat_message("assistant"):
+                with st.spinner("Analyzing data and generating recommendation..."):
+                    response = analysis_chain.run(
+                        hospital_name=hospital_name,
+                        hospital_data_str=hospital_data_str,
+                        question=prompt
+                    )
+                    st.markdown(response)
+            # Add assistant response to chat history
+            st.session_state.messages.append({"role": "assistant", "content": response})
+
+        else:
+            # Use the general chain for general questions
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    response = general_chain.run(question=prompt)
+                    st.write(response)
+            # Add assistant response to chat history
+            st.session_state.messages.append({"role": "assistant", "content": response})
