@@ -17,8 +17,8 @@ import re
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2)  # Use for general questions and classification
-chat_llm = ChatOpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2) # Use for data-specific analysis
+llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions and classification
+chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) # Use for data-specific analysis
 
 # --- Define Prompt Templates ---
 # General Question Prompt Template
