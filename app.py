@@ -17,8 +17,8 @@ import re
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
-chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) # Use for data-specific analysis
+llm = OpenAI(openai_api_key=st.secrets["AssistantID"], temperature=0.2)  # Use for general questions
+chat_llm = ChatOpenAI(openai_api_key=st.secrets["AssistantID"], temperature=0.2) # Use for data-specific analysis
 
 # --- Define Prompt Templates ---
 # General Question Prompt Template
@@ -68,6 +68,38 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     ## Further Considerations (Optional):
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
+    
+    Example of a question and answer:
+    
+    Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
+    
+    Answer:
+    ## Analysis:
+    * The current bed capacity of Hospital X is 80.
+    * The overall occupancy rate is 79%.
+    * The surgery department has the highest occupancy rate at 90%, with an average stay of 2 days.
+    * The surgery department has 5 doctors and 50 nurses.
+
+    ## Considerations:
+
+    * Increasing bed capacity without addressing the doctor shortage in the surgery department might not be effective.
+    * The high occupancy rate in surgery suggests a potential bottleneck.
+    * The short average stay in surgery indicates a high turnover of patients.
+
+    ## Conclusion:
+
+    Increasing the bed capacity to 100 might not be the most effective solution without addressing the staffing issue in the surgery department.
+
+    ## Recommendations:
+
+    1.  Prioritize increasing the number of doctors in the surgery department.
+    2.  Monitor occupancy rates after increasing the number of doctors to determine if further bed capacity expansion is needed.
+
+    ## Further Considerations (Optional):
+
+    * Analyze patient wait times in the surgery department.
+    * Evaluate the efficiency of the surgical scheduling process.
+    
     """
 )
 chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
