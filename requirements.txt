@@ -4,3 +4,4 @@ openai
 streamlit
 tiktoken
 typing-extensions
+plotly
