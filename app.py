@@ -1,150 +1,222 @@
 import json
 import streamlit as st
-import re
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.prompts.chat import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+)
+from langchain.chat_models import ChatOpenAI
+import re
 
-# Load data
+# --- Load Data and Initialize LLM ---
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-# Streamlit Interface
-st.title("Healthcare Information Assistant")
+llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # General questions
+chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Data analysis
+
+# --- Define Prompt Templates ---
+# General Question Prompt Template
+general_prompt_template = """
+You are a helpful AI assistant. Answer the following question as concisely as possible:
+
+Question: {question}
+"""
+general_prompt = PromptTemplate(
+    input_variables=["question"],
+    template=general_prompt_template
+)
+general_chain = LLMChain(llm=llm, prompt=general_prompt)
+
+# Classification Prompt Template
+classification_prompt_template = """
+You are an AI that classifies questions based on whether they require a detailed analysis of hospital data or not.
+Classify the following question:
+
+Question: {question}
+
+Answer with 'simple' if the question can be answered directly without data analysis, or 'analysis' if it requires detailed data analysis.
+
+Answer:
+"""
+classification_prompt = PromptTemplate(
+    input_variables=["question"],
+    template=classification_prompt_template
+)
+classification_chain = LLMChain(llm=llm, prompt=classification_prompt)
+
+# Hospital Analysis Prompt Template
+system_message_prompt = SystemMessagePromptTemplate.from_template(
+    """
+    You are a hospital management consultant. Analyze the following data from these hospitals:
+    {hospital_data_str}
+    """
+)
+human_message_prompt = HumanMessagePromptTemplate.from_template(
+    """
+    {question}
+
+    Format your response with the following structure:
+
+    ## Analysis:
+
+    *   Present a detailed analysis of the provided data, including key metrics and calculations.
+    *   Use bullet points to highlight important observations.
+
+    ## Considerations:
+
+    *   Discuss factors that should be taken into account when making recommendations, including potential limitations of the data.
+    *   Use bullet points to list these considerations.
+
+    ## Conclusion:
+
+    *   Provide a clear and concise conclusion based on your analysis and considerations.
+
+    ## Recommendations:
+
+    *   Offer specific, actionable recommendations for the hospital.
+    *   Use numbered points for each recommendation.
+
+    ## Further Considerations (Optional):
+
+    *   If applicable, suggest additional data or analysis that could provide further insights.
+    """
+)
+chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
+analysis_chain = LLMChain(llm=chat_llm, prompt=chat_prompt)
+
+# --- Streamlit Interface ---
+st.title("Healthcare Advisor")
 
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display chat messages from history
+# Display chat messages from history on app rerun
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Helper function: Generate suggestions for improvement
-def generate_improvement_suggestions(hospital):
-    suggestions = []
-    
-    # Check staffing levels
-    total_doctors = sum(dept["doctors"] for dept in hospital["departments"].values())
-    total_nurses = sum(dept["nurses"] for dept in hospital["departments"].values())
-    if total_doctors / hospital["bed_capacity"] < 0.05:
-        suggestions.append("Increase the number of doctors to improve patient-to-doctor ratios.")
-    if total_nurses / hospital["bed_capacity"] < 0.1:
-        suggestions.append("Increase the number of nurses to enhance patient care.")
-
-    # Technology and equipment
-    suggestions.append("Invest in modern medical equipment to improve diagnostic and treatment capabilities.")
-
-    # Patient satisfaction
-    suggestions.append("Implement a patient feedback system to identify areas for improvement in care quality.")
-
-    # Staff communication
-    suggestions.append("Enhance communication and collaboration among staff through regular training and team-building activities.")
-
-    return suggestions
-
-# Helper function: Create visualizations for hospital data
-def create_visualizations(hospital):
-    department_names = list(hospital["departments"].keys())
-    doctor_counts = [dept["doctors"] for dept in hospital["departments"].values()]
-    nurse_counts = [dept["nurses"] for dept in hospital["departments"].values()]
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    bar_width = 0.35
-    index = range(len(department_names))
-
-    ax.bar(index, doctor_counts, bar_width, label="Doctors")
-    ax.bar([i + bar_width for i in index], nurse_counts, bar_width, label="Nurses")
-
-    ax.set_xlabel("Departments")
-    ax.set_ylabel("Staff Count")
-    ax.set_title("Staff Distribution by Department")
-    ax.set_xticks([i + bar_width / 2 for i in index])
-    ax.set_xticklabels(department_names, rotation=45)
-    ax.legend()
-
-    st.pyplot(fig)
-
 # React to user input
-if prompt := st.chat_input("Ask a question about hospitals, clinics, or polyclinics here:"):
-    # Display user message
+if prompt := st.chat_input("Enter your question here"):
+    # Display user message in chat message container
     st.chat_message("user").markdown(prompt)
+    # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Process location questions
-    if "location" in prompt.lower():
-        # Check if the prompt specifies a hospital, clinic, or polyclinic
-        entity_match = re.search(r"(hospital|clinic|polyclinic)\s*(\d+)", prompt, re.IGNORECASE)
-        if entity_match:
-            entity_type = entity_match.group(1).lower()
-            entity_number = entity_match.group(2)
-            entity_name = f"{entity_type.capitalize()}{entity_number}"
+    # Classify the question type
+    question_type = classification_chain.run(question=prompt).lower()
 
-            # Search the corresponding data
-            selected_entity = None
-            if entity_type == "hospital":
-                selected_entity = next((item for item in hospital_data["hospitals"] if item["name"] == entity_name), None)
-            elif entity_type == "clinic":
-                selected_entity = next((item for item in hospital_data["clinics"] if item["name"] == entity_name), None)
-            elif entity_type == "polyclinic":
-                selected_entity = next((item for item in hospital_data["polyclinics"] if item["name"] == entity_name), None)
-
-            # Generate response
-            if selected_entity:
-                location = selected_entity["location"]
-                response = (
-                    f"{entity_name} is located at:\n"
-                    f"- Address: {location['address']}\n"
-                    f"- City: {location['city']}\n"
-                    f"- Region: {location['region']}\n"
-                    f"- ZIP Code: {location['zip_code']}\n"
-                    f"- Latitude: {location['latitude']}, Longitude: {location['longitude']}"
-                )
-            else:
-                response = f"Sorry, I could not find the location of {entity_name} in the data."
+    # Handle simple questions
+    if question_type == "simple":
+        match = re.search(r"hospital\s*(\d+)", prompt, re.IGNORECASE)
+        if match:
+            hospital_name = f"Hospital{match.group(1)}"
+            response = None
+            for hospital in hospital_data["hospitals"]:
+                if hospital["name"].lower() == hospital_name.lower():
+                    response = f"{hospital_name} is located at {hospital['location']}."
+                    break
+            if not response:
+                response = f"Could not find information for {hospital_name}."
         else:
-            response = "I couldn't identify the hospital, clinic, or polyclinic you mentioned. Please specify the entity number."
-
+            response = "I couldn't identify the hospital you're asking about."
+        
         # Display response
         with st.chat_message("assistant"):
-            st.markdown(response)
+            st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Process improvement suggestions
-    elif "improvement" in prompt.lower():
-        entity_match = re.search(r"(hospital)\s*(\d+)", prompt, re.IGNORECASE)
-        if entity_match:
-            entity_number = entity_match.group(2)
-            entity_name = f"Hospital{entity_number}"
+    # Handle complex questions
+    elif question_type == "analysis":
+        match = re.search(r"hospital\s*(\d+)", prompt, re.IGNORECASE)
+        if match:
+            hospital_name = f"Hospital{match.group(1)}"
+            hospital_data_str = json.dumps(hospital_data, indent=2)
 
-            # Search the hospital data
-            selected_hospital = next((item for item in hospital_data["hospitals"] if item["name"] == entity_name), None)
+            # Find the selected hospital's data
+            selected_hospital_data = None
+            for hospital in hospital_data["hospitals"]:
+                if hospital["name"] == hospital_name:
+                    selected_hospital_data = hospital
+                    break
 
-            if selected_hospital:
-                # Generate suggestions and visualizations
-                suggestions = generate_improvement_suggestions(selected_hospital)
-                response = f"Some potential improvements for {entity_name} could include:\n" + "\n".join(f"- {s}" for s in suggestions)
-
+            if selected_hospital_data:
                 with st.chat_message("assistant"):
-                    st.markdown(response)
-                    st.markdown("### Staff Distribution by Department")
-                    create_visualizations(selected_hospital)
+                    with st.spinner("Analyzing data and generating recommendations..."):
+                        response = analysis_chain.run(
+                            hospital_name=hospital_name,
+                            hospital_data_str=hospital_data_str,
+                            question=prompt
+                        )
+                        st.markdown(response)
 
+                        # --- Charts ---
+                        st.subheader("Data Visualization")
+
+                        # Chart 1: Bed Capacity vs. Inpatient Admissions
+                        df_bed_admissions = pd.DataFrame({
+                            "Department": [dept for dept in selected_hospital_data["departments"]],
+                            "Bed Capacity": [
+                                selected_hospital_data["bed_capacity"] / len(selected_hospital_data["departments"])
+                                for _ in selected_hospital_data["departments"]
+                            ],
+                            "Inpatient Admissions": [
+                                selected_hospital_data["departments"][dept]["inpatient_admissions_daily"]
+                                for dept in selected_hospital_data["departments"]
+                            ]
+                        })
+
+                        fig_bed_admissions = px.bar(
+                            df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
+                            title=f"Bed Capacity vs. Inpatient Admissions by Department in {hospital_name}",
+                            barmode="group"
+                        )
+                        st.plotly_chart(fig_bed_admissions)
+
+                        # Chart 2: Doctor and Nurse Ratios
+                        df_staffing = pd.DataFrame({
+                            "Department": [dept for dept in selected_hospital_data["departments"]],
+                            "Doctors": [
+                                selected_hospital_data["departments"][dept]["doctors"]
+                                for dept in selected_hospital_data["departments"]
+                            ],
+                            "Nurses": [
+                                selected_hospital_data["departments"][dept]["nurses"]
+                                for dept in selected_hospital_data["departments"]
+                            ]
+                        })
+
+                        fig_staffing = px.bar(
+                            df_staffing, x="Department", y=["Doctors", "Nurses"],
+                            title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
+                            barmode="group"
+                        )
+                        st.plotly_chart(fig_staffing)
+
+                # Add response to chat history
                 st.session_state.messages.append({"role": "assistant", "content": response})
+
             else:
-                response = f"Sorry, I could not find data for {entity_name}."
                 with st.chat_message("assistant"):
-                    st.markdown(response)
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.write(f"Could not find data for {hospital_name}.")
+
         else:
-            response = "I couldn't identify the hospital you mentioned. Please specify the hospital number."
             with st.chat_message("assistant"):
-                st.markdown(response)
+                with st.spinner("Thinking..."):
+                    response = general_chain.run(question=prompt)
+                    st.write(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
 
+    # Handle unclassified questions
     else:
-        # Fallback for unsupported questions
-        response = "I'm currently equipped to provide location details and suggestions for improvements. Please ask accordingly."
         with st.chat_message("assistant"):
-            st.markdown(response)
+            with st.spinner("Thinking..."):
+                response = general_chain.run(question=prompt)
+                st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
