@@ -40,7 +40,7 @@ Classify the following question:
 
 Question: {question}
 
-Answer with 'simple' if the question can be answered directly without data analysis, or 'analysis' if it requires detailed data analysis.
+Answer with 'simple' if the question can be answered directly without data analysis, or 'analysis' if it requires detailed data analysis based on the provided data. Also, answer 'waiting_time' if it is related to waiting time.
 
 Answer:
 """
@@ -86,37 +86,6 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
 
-    Example of a question and answer:
-
-    Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
-
-    Answer:
-    ## Analysis:
-    * The current bed capacity of Hospital X is 80.
-    * The overall occupancy rate is 79%.
-    * The surgery department has the highest occupancy rate at 90%, with an average stay of 2 days.
-    * The surgery department has 5 doctors and 50 nurses.
-
-    ## Considerations:
-
-    * Increasing bed capacity without addressing the doctor shortage in the surgery department might not be effective.
-    * The high occupancy rate in surgery suggests a potential bottleneck.
-    * The short average stay in surgery indicates a high turnover of patients.
-
-    ## Conclusion:
-
-    Increasing the bed capacity to 100 might not be the most effective solution without addressing the staffing issue in the surgery department.
-
-    ## Recommendations:
-
-    1.  Prioritize increasing the number of doctors in the surgery department.
-    2.  Monitor occupancy rates after increasing the number of doctors to determine if further bed capacity expansion is needed.
-
-    ## Further Considerations (Optional):
-
-    * Analyze patient wait times in the surgery department.
-    * Evaluate the efficiency of the surgical scheduling process.
-
     """
 )
 chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
@@ -143,10 +112,10 @@ if prompt := st.chat_input("Enter your question here"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     # Classify the question type
-    question_type = classification_chain.run(question=prompt).lower()
+    question_type = classification_chain.run(question=prompt).lower().strip()
 
     # Check if the question is about waiting time
-    if "waiting time" in prompt.lower():
+    if question_type == "waiting_time":
         # Calculate and display average waiting time
         wait_times = []
         hospital_waiting_times = {}
@@ -247,13 +216,4 @@ if prompt := st.chat_input("Enter your question here"):
                     response = general_chain.run(question=prompt)
                     st.write(response)
             # Add assistant response to chat history
-            st.session_state.messages.append({"role": "assistant", "content": response})
-
-    # Process simple questions
-    else:
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = general_chain.run(question=prompt)
-                st.write(response)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state
