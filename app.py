@@ -129,12 +129,14 @@ if prompt := st.chat_input("Enter your question here"):
     if "waiting time" in prompt.lower():
         # Calculate and display average waiting time
         wait_times = []
+        hospital_waiting_times = {}
         for hospital in hospital_data["hospitals"]:
             total_beds = hospital["bed_capacity"]
             total_admissions = sum(hospital["departments"][dept]["inpatient_admissions_daily"] for dept in hospital["departments"])
             if total_admissions > 0:
                 avg_wait_time = total_beds / total_admissions
                 wait_times.append(avg_wait_time)
+                hospital_waiting_times[hospital["name"]] = avg_wait_time
 
         if wait_times:
             avg_wait_time_all = sum(wait_times) / len(wait_times)
@@ -142,6 +144,16 @@ if prompt := st.chat_input("Enter your question here"):
                 st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days."})
+            
+            # Check if the question is about the hospital with the highest waiting time
+            if "highest waiting time" in prompt.lower():
+                highest_waiting_time_hospital = max(hospital_waiting_times, key=hospital_waiting_times.get)
+                highest_waiting_time = hospital_waiting_times[highest_waiting_time_hospital]
+                with st.chat_message("assistant"):
+                    st.write(f"The hospital with the highest waiting time is {highest_waiting_time_hospital} with an average waiting time of approximately {highest_waiting_time:.2f} days.")
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": f"The hospital with the highest waiting time is {highest_waiting_time_hospital} with an average waiting time of approximately {highest_waiting_time:.2f} days."})
+
         else:
             with st.chat_message("assistant"):
                 st.write("Could not calculate average waiting time due to lack of data.")
@@ -164,6 +176,41 @@ if prompt := st.chat_input("Enter your question here"):
                         question=prompt
                     )
                     st.markdown(response)
+
+                    # --- Charts ---
+                    st.subheader("Data Visualization")
+
+                    # Find the selected hospital's data
+                    selected_hospital_data = None
+                    for hospital in hospital_data["hospitals"]:
+                        if hospital["name"] == hospital_name:
+                            selected_hospital_data = hospital
+                            break
+
+                    # Chart 1: Bed Capacity vs. Inpatient Admissions
+                    df_bed_admissions = pd.DataFrame({
+                        "Department": [dept for dept in selected_hospital_data["departments"]],
+                        "Bed Capacity": [selected_hospital_data["bed_capacity"] / len(selected_hospital_data["departments"]) for _ in selected_hospital_data["departments"]],
+                        "Inpatient Admissions": [selected_hospital_data["departments"][dept]["inpatient_admissions_daily"] for dept in selected_hospital_data["departments"]]
+                    })
+
+                    fig_bed_admissions = px.bar(df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
+                                                 title=f"Bed Capacity vs. Inpatient Admissions by Department in {hospital_name}",
+                                                 barmode="group")
+                    st.plotly_chart(fig_bed_admissions)
+
+                    # Chart 2: Doctor and Nurse Ratios
+                    df_staffing = pd.DataFrame({
+                        "Department": [dept for dept in selected_hospital_data["departments"]],
+                        "Doctors": [selected_hospital_data["departments"][dept]["doctors"] for dept in selected_hospital_data["departments"]],
+                        "Nurses": [selected_hospital_data["departments"][dept]["nurses"] for dept in selected_hospital_data["departments"]]
+                    })
+
+                    fig_staffing = px.bar(df_staffing, x="Department", y=["Doctors", "Nurses"],
+                                           title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
+                                           barmode="group")
+                    st.plotly_chart(fig_staffing)
+
             # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
 
