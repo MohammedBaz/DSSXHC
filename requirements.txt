@@ -5,3 +5,4 @@ streamlit
 tiktoken
 typing-extensions
 plotly
+fpdf
