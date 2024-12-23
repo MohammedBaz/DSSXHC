@@ -18,8 +18,8 @@ from langchain.prompts.chat import (
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
-chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for data-specific analysis
+llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)
+chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)
 
 # --- Define Prompt Templates ---
 # General Question Prompt Template
@@ -107,8 +107,37 @@ chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_mes
 
 analysis_chain = LLMChain(llm=chat_llm, prompt=chat_prompt)
 
+# --- Helper Functions ---
+
+def extract_data(hospital_name, data_type):
+    """
+    Extracts data from hospital_data based on the question.
+    """
+    for hospital in hospital_data["hospitals"]:
+        if hospital["name"] == hospital_name:
+            if data_type == "nurses":
+                total_nurses = sum(dept["nurses"] for dept in hospital["departments"].values())
+                return f"The total number of nurses in {hospital_name} is {total_nurses}."
+            elif data_type == "doctors":
+                total_doctors = sum(dept["doctors"] for dept in hospital["departments"].values())
+                return f"The total number of doctors in {hospital_name} is {total_doctors}."
+            elif data_type == "beds":
+                total_beds = hospital["bed_capacity"]
+                return f"The total number of beds in {hospital_name} is {total_beds}."
+            # ... (add more conditions for other data types like waiting time, etc.) ...
+    return "Could not find the requested information."
+
+
 # --- Streamlit Interface ---
 st.title("Healthcare Advisor")
+
+# Display available data
+st.header("Available Data:")
+st.write("The app has access to data for the following hospitals and departments:")
+for hospital in hospital_data["hospitals"]:
+    st.write(f"**{hospital['name']}**")
+    for dept in hospital["departments"]:
+        st.write(f"  - {dept}")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -126,20 +155,28 @@ if prompt := st.chat_input("Enter your question here"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Check for specific keywords or patterns
-    waiting_time_keywords = ["waiting time", "wait time", "how long to wait"]
-    hospital_specific_pattern = r"hospital\s*(\w+)"
+    # Check for simple data questions
+    simple_question_pattern = r"(how many|what is the|what are the) (doctors|nurses|beds) (in|of) (hospital \w+)"
+    simple_question_match = re.search(simple_question_pattern, prompt, re.IGNORECASE)
 
+    # Check for hospital-specific analysis questions
+    hospital_specific_pattern = r"(hospital\s*(\w+))"
     hospital_match = re.search(hospital_specific_pattern, prompt, re.IGNORECASE)
 
-    if any(keyword in prompt.lower() for keyword in waiting_time_keywords):
-        # Handle waiting time questions
-        # ... [Improved code for handling waiting time questions] 
-        st.write("Waiting time analysis is not yet fully implemented.") # Placeholder for improved logic
+    if simple_question_match:
+        # Extract information from the question
+        data_type = simple_question_match.group(2).strip().lower()  # e.g., "nurses", "doctors"
+        hospital_name = simple_question_match.group(4).strip()  # e.g., "hospital 1"
+
+        with st.chat_message("assistant"):
+            with st.spinner("Extracting data..."):
+                response = extract_data(hospital_name, data_type)
+                st.write(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
     elif hospital_match:
-        # Handle hospital-specific questions
-        hospital_name = f"Hospital {hospital_match.group(1)}"  # Add space after 'Hospital'
+        # Handle hospital-specific analysis questions
+        hospital_name = f"Hospital {hospital_match.group(1)}"
         hospital_data_str = json.dumps(hospital_data, indent=2)
 
         # Find the selected hospital's data
@@ -149,10 +186,9 @@ if prompt := st.chat_input("Enter your question here"):
                 selected_hospital_data = hospital
                 break
 
-        # Display assistant response in chat message container only if hospital is found
         if selected_hospital_data:
             with st.chat_message("assistant"):
-                with st.spinner("Analyzing data and generating recommendation..."):
+                with st.spinner("Analyzing data and generating recommendations..."):
                     response = analysis_chain.run(
                         hospital_name=hospital_name,
                         hospital_data_str=hospital_data_str,
@@ -186,13 +222,12 @@ if prompt := st.chat_input("Enter your question here"):
                                       title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
                                       barmode="group")
                 st.plotly_chart(fig_staffing)
-
-                # Add assistant response to chat history
             st.session_state.messages.append({"role": "assistant", "content": response})
 
         else:
             with st.chat_message("assistant"):
                 st.write(f"Could not find data for {hospital_name}.")
+            st.session_state.messages.append({"role": "assistant", "content": f"Could not find data for {hospital_name}."})
 
     else:
         # Handle general questions
@@ -200,5 +235,4 @@ if prompt := st.chat_input("Enter your question here"):
             with st.spinner("Thinking..."):
                 response = general_chain.run(question=prompt)
                 st.write(response)
-        # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response})
