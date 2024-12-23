@@ -172,11 +172,11 @@ if prompt := st.chat_input("Enter your question here"):
             with st.spinner("Extracting data..."):
                 response = extract_data(hospital_name, data_type)
                 st.write(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        st.session_state.messages.append({"role": "assistant", "content": response}) 
 
     elif hospital_match:
         # Handle hospital-specific analysis questions
-        hospital_name = f"Hospital {hospital_match.group(1)}"
+        hospital_name = f"Hospital{hospital_match.group(2)}"  # Construct correct hospital name
         hospital_data_str = json.dumps(hospital_data, indent=2)
 
         # Find the selected hospital's data
