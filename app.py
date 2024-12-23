@@ -68,123 +68,6 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     ## Further Considerations (Optional):
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
-
-    Example of a question and answer:
-
-    Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
-
-    Answer:
-    ## Analysis:
-    * The current bed capacity of Hospital X is 80.
-    * The overall occupancy rate is 79%.
-    * The surgery department has the highest occupancy rate at 90%, with an average stay of 2 days.
-    * The surgery department has 5 doctors and 50 nurses.
-
-    ## Considerations:
-
-    * Increasing bed capacity without addressing the doctor shortage in the surgery department might not be effective.
-    * The high occupancy rate in surgery suggests a potential bottleneck.
-    * The short average stay in surgery indicates a high turnover of patients.
-
-    ## Conclusion:
-
-    Increasing the bed capacity to 100 might not be the most effective solution without addressing the staffing issue in the surgery department.
-
-    ## Recommendations:
-
-    1.  Prioritize increasing the number of doctors in the surgery department.
-    2.  Monitor occupancy rates after increasing the number of doctors to determine if further bed capacity expansion is needed.
-
-    ## Further Considerations (Optional):
-
-    * Analyze patient wait times in the surgery department.
-    * Evaluate the efficiency of the surgical scheduling process.
-
-    Question: what is the average waiting time of Hospital1?
-    Answer:
-    ## Analysis:
-    *   Hospital1 has a total bed capacity of 400.
-    *   The daily inpatient admissions across all departments is 110.
-    *   The average waiting time is calculated as bed capacity divided by total daily inpatient admissions.
-
-    ## Considerations:
-    *  This calculation assumes uniform distribution of patients across all departments and does not account for variations in patient flow or emergency cases.
-
-    ## Conclusion:
-
-    *   The average waiting time for Hospital1 is approximately 3.64 days based on the provided data and calculation method.
-
-    ## Recommendations:
-
-    1.  Further investigate the distribution of patient admissions and lengths of stay within each department to identify bottlenecks.
-    2.  Consider implementing a patient flow management system to optimize bed usage and reduce waiting times.
-
-    Question: what are the location and bed capacity of Hospital1?
-    Answer:
-    ## Analysis:
-
-    *   Hospital1 is located in Taif, Makkah, at Al Mathnah, Taif.
-    *   Hospital1 has a bed capacity of 400.
-
-    ## Considerations:
-
-    *   The bed capacity indicates the maximum number of inpatients the hospital can accommodate.
-
-    ## Conclusion:
-
-    *   Hospital1 is situated at Al Mathnah in Taif, Makkah, and can accommodate up to 400 inpatients.
-
-    ## Recommendations:
-
-    1.  Regularly assess the occupancy rates to ensure the hospital is operating efficiently within its capacity.
-    2.  Consider expansion or resource reallocation if the hospital frequently operates near or at full capacity.
-
-    Question: what is the average waiting time of Hospital2?
-    Answer:
-    ## Analysis:
-    *   Hospital2 has a total bed capacity of 250.
-    *   The daily inpatient admissions across all departments is 65.
-    *   The average waiting time is calculated as bed capacity divided by total daily inpatient admissions.
-
-    ## Considerations:
-    *  This calculation assumes uniform distribution of patients across all departments and does not account for variations in patient flow or emergency cases.
-
-    ## Conclusion:
-
-    *   The average waiting time for Hospital2 is approximately 3.85 days based on the provided data and calculation method.
-
-    ## Recommendations:
-
-    1.  Further investigate the distribution of patient admissions and lengths of stay within each department to identify bottlenecks.
-    2.  Consider implementing a patient flow management system to optimize bed usage and reduce waiting times.
-
-    Question: what is your suggestion to improve the performance of the medical service in hospital x?
-    Answer:
-    ## Analysis:
-    *   Need to identify specific areas of concern based on the provided data, such as long waiting times, high occupancy rates in certain departments, or staffing imbalances.
-    *   For instance, if the emergency department has a high occupancy rate and long waiting times, it might indicate a need for more resources or process improvements in that area.
-
-    ## Considerations:
-
-    *   The current staffing levels, particularly the number of doctors and nurses in each department.
-    *   The average length of stay for patients in different departments.
-    *   The daily outpatient visits and inpatient admissions, which can highlight the demand for different services.
-
-    ## Conclusion:
-    *   Based on a preliminary review, areas such as the emergency department may require attention due to high demand. A detailed analysis of each department's performance is necessary to make specific recommendations.
-
-    ## Recommendations:
-
-    1.  Conduct a thorough review of patient flow and identify bottlenecks in high-demand departments.
-    2.  Evaluate staffing levels against patient volumes and consider reallocating or increasing staff where necessary.
-    3.  Implement process improvements, such as lean management principles, to enhance operational efficiency.
-    4.  Invest in technology upgrades, like an updated electronic health record (EHR) system, to improve data collection and patient care coordination.
-
-    ## Further Considerations (Optional):
-
-    *   Gather more granular data on patient wait times, treatment times, and outcomes to pinpoint specific areas for improvement.
-    *   Consider patient feedback through surveys to understand their experiences and identify areas where service quality can be enhanced.
-
     """
 )
 chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
@@ -252,7 +135,7 @@ if prompt := st.chat_input("Enter your question here"):
 
             if wait_times:
                 avg_wait_time_all = sum(wait_times) / len(wait_times)
-                response = f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days."
+                response = f"The average waiting time across all healthcare centers is approximately {avg_wait_time_all:.2f} days."
 
                 if "highest waiting time" in prompt.lower():
                     highest_waiting_time_hospital = max(hospital_waiting_times, key=hospital_waiting_times.get)
@@ -317,41 +200,11 @@ if prompt := st.chat_input("Enter your question here"):
                     # Chart 1: Bed Capacity vs. Inpatient Admissions
                     df_bed_admissions = pd.DataFrame({
                         "Department": [dept for dept in selected_hospital_data["departments"]],
-                        "Bed Capacity": [selected_hospital_data["bed_capacity"] / len(selected_hospital_data["departments"]) for _ in selected_hospital_data["departments"]],
+                        "Bed Capacity": [selected_hospital_data["bed_capacity"] for dept in selected_hospital_data["departments"]],
                         "Inpatient Admissions": [selected_hospital_data["departments"][dept]["inpatient_admissions_daily"] for dept in selected_hospital_data["departments"]]
                     })
 
-                    fig_bed_admissions = px.bar(df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
-                                                 title=f"Bed Capacity vs. Inpatient Admissions by Department in {hospital_name}",
-                                                 barmode="group")
-                    st.plotly_chart(fig_bed_admissions)
-
-                    # Chart 2: Doctor and Nurse Ratios
-                    df_staffing = pd.DataFrame({
-                        "Department": [dept for dept in selected_hospital_data["departments"]],
-                        "Doctors": [selected_hospital_data["departments"][dept]["doctors"] for dept in selected_hospital_data["departments"]],
-                        "Nurses": [selected_hospital_data["departments"][dept]["nurses"] for dept in selected_hospital_data["departments"]]
-                    })
-
-                    fig_staffing = px.bar(df_staffing, x="Department", y=["Doctors", "Nurses"],
-                                           title=f"Doctor and Nurse Ratios by Department in {hospital_name}",
-                                           barmode="group")
-                    st.plotly_chart(fig_staffing)
-
-            # Add assistant response to chat history
-            st.session_state.messages.append({"role": "assistant", "content": response})
-
-        else:
-            response = f"Could not find data for {hospital_name}."
-            with st.chat_message("assistant"):
-                st.write(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-
-    else:
-        # Handle general questions
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = general_chain.run(question=prompt)
-                st.write(response)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+                    # Create a plotly chart
+                    fig = px.bar(df_bed_admissions, x="Department", y=["Bed Capacity", "Inpatient Admissions"],
+                                 title=f"Bed Capacity and Inpatient Admissions of {hospital_name}")
+                    st.plotly_chart(fig)
