@@ -23,7 +23,7 @@ chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) #
 # --- Define Prompt Templates ---
 # General Question Prompt Template
 general_prompt_template = """
-You are a helpful AI assistant. Answer the following question as concisely as possible:
+You are a helpful AI assistant. Answer the following question as concisely as possible. If the question is a request to list all hospitals or related information, provide the list directly without analysis, considerations, or conclusions.
 
 Question: {question}
 """
@@ -69,7 +69,7 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
 
-    Example of a question and answer:
+    Here are some examples:
 
     Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
 
@@ -158,6 +158,30 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     1.  Further investigate the distribution of patient admissions and lengths of stay within each department to identify bottlenecks.
     2.  Consider implementing a patient flow management system to optimize bed usage and reduce waiting times.
 
+    Question: what is your suggestion to improve the performance of the medical service in hospital x?
+    Answer:
+    ## Analysis:
+    *   Need to identify specific areas of concern based on the provided data, such as long waiting times, high occupancy rates in certain departments, or staffing imbalances.
+    *   For instance, if the emergency department has a high occupancy rate and long waiting times, it might indicate a need for more resources or process improvements in that area.
+
+    ## Considerations:
+    *   The current staffing levels, particularly the number of doctors and nurses in each department.
+    *   The average length of stay for patients in different departments.
+    *   The daily outpatient visits and inpatient admissions, which can highlight the demand for different services.
+
+    ## Conclusion:
+    *   Based on a preliminary review, areas such as the emergency department may require attention due to high demand. A detailed analysis of each department's performance is necessary to make specific recommendations.
+
+    ## Recommendations:
+    1.  Conduct a thorough review of patient flow and identify bottlenecks in high-demand departments.
+    2.  Evaluate staffing levels against patient volumes and consider reallocating or increasing staff where necessary.
+    3.  Implement process improvements, such as lean management principles, to enhance operational efficiency.
+    4.  Invest in technology upgrades, like an updated electronic health record (EHR) system, to improve data collection and patient care coordination.
+
+    ## Further Considerations (Optional):
+    *   Gather more granular data on patient wait times, treatment times, and outcomes to pinpoint specific areas for improvement.
+    *   Consider patient feedback through surveys to understand their experiences and identify areas where service quality can be enhanced.
+
     """
 )
 chat_prompt = ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])
@@ -186,7 +210,7 @@ if prompt := st.chat_input("Enter your question here"):
     # Check for specific keywords or patterns
     waiting_time_keywords = ["waiting time", "wait time", "how long to wait"]
     hospital_specific_pattern = r"hospital\s*(\w+)"
-    list_all_hospitals_keywords = ["list all hospitals", "list all healthcare centers", "what hospitals do you know"]
+    list_all_hospitals_keywords = ["list all hospitals", "list all healthcare centers", "what hospitals do you know", "list hospitals", "show hospitals", "show all hospitals","show me all the data you have on the hospitals", "what data do you have", "show data"]
 
     hospital_match = re.search(hospital_specific_pattern, prompt, re.IGNORECASE)
 
@@ -326,7 +350,4 @@ if prompt := st.chat_input("Enter your question here"):
         # Handle general questions
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                response = general_chain.run(question=prompt)
-                st.write(response)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+                response
