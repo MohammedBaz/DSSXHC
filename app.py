@@ -23,7 +23,7 @@ chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) #
 # --- Define Prompt Templates ---
 # General Question Prompt Template
 general_prompt_template = """
-You are a helpful AI assistant. Answer the following question as concisely as possible. If the question is a request to list all hospitals or related information, provide the list directly without analysis, considerations, or conclusions.
+You are a helpful AI assistant. Answer the following question as concisely as possible:
 
 Question: {question}
 """
@@ -69,7 +69,7 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
 
-    Here are some examples:
+    Example of a question and answer:
 
     Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
 
@@ -165,6 +165,7 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     *   For instance, if the emergency department has a high occupancy rate and long waiting times, it might indicate a need for more resources or process improvements in that area.
 
     ## Considerations:
+
     *   The current staffing levels, particularly the number of doctors and nurses in each department.
     *   The average length of stay for patients in different departments.
     *   The daily outpatient visits and inpatient admissions, which can highlight the demand for different services.
@@ -173,12 +174,14 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     *   Based on a preliminary review, areas such as the emergency department may require attention due to high demand. A detailed analysis of each department's performance is necessary to make specific recommendations.
 
     ## Recommendations:
+
     1.  Conduct a thorough review of patient flow and identify bottlenecks in high-demand departments.
     2.  Evaluate staffing levels against patient volumes and consider reallocating or increasing staff where necessary.
     3.  Implement process improvements, such as lean management principles, to enhance operational efficiency.
     4.  Invest in technology upgrades, like an updated electronic health record (EHR) system, to improve data collection and patient care coordination.
 
     ## Further Considerations (Optional):
+
     *   Gather more granular data on patient wait times, treatment times, and outcomes to pinpoint specific areas for improvement.
     *   Consider patient feedback through surveys to understand their experiences and identify areas where service quality can be enhanced.
 
@@ -213,6 +216,9 @@ if prompt := st.chat_input("Enter your question here"):
     list_all_hospitals_keywords = ["list all hospitals", "list all healthcare centers", "what hospitals do you know", "list hospitals", "show hospitals", "show all hospitals","show me all the data you have on the hospitals", "what data do you have", "show data"]
 
     hospital_match = re.search(hospital_specific_pattern, prompt, re.IGNORECASE)
+    
+    # Initialize response variable
+    response = None
 
     if any(keyword in prompt.lower() for keyword in waiting_time_keywords):
         # Handle waiting time questions
@@ -226,17 +232,12 @@ if prompt := st.chat_input("Enter your question here"):
                 total_admissions = sum(selected_hospital_data["departments"][dept]["inpatient_admissions_daily"] for dept in selected_hospital_data["departments"])
                 if total_admissions > 0:
                     avg_wait_time = total_beds / total_admissions
-                    with st.chat_message("assistant"):
-                        st.write(f"The average waiting time in {hospital_name} is approximately {avg_wait_time:.2f} days.")
-                    st.session_state.messages.append({"role": "assistant", "content": f"The average waiting time in {hospital_name} is approximately {avg_wait_time:.2f} days."})
+                    response = f"The average waiting time in {hospital_name} is approximately {avg_wait_time:.2f} days."
                 else:
-                    with st.chat_message("assistant"):
-                        st.write(f"Could not calculate average waiting time for {hospital_name} due to lack of data.")
-                    st.session_state.messages.append({"role": "assistant", "content": f"Could not calculate average waiting time for {hospital_name} due to lack of data."})
+                    response = f"Could not calculate average waiting time for {hospital_name} due to lack of data."
             else:
-                with st.chat_message("assistant"):
-                    st.write(f"Could not find data for {hospital_name}.")
-                st.session_state.messages.append({"role": "assistant", "content": f"Could not find data for {hospital_name}."})
+                response = f"Could not find data for {hospital_name}."
+
         else:
             # Handle general waiting time questions
             wait_times = []
@@ -251,30 +252,29 @@ if prompt := st.chat_input("Enter your question here"):
 
             if wait_times:
                 avg_wait_time_all = sum(wait_times) / len(wait_times)
-                with st.chat_message("assistant"):
-                    st.write(f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days.")
-                st.session_state.messages.append({"role": "assistant", "content": f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days."})
+                response = f"The average waiting time across all healthcare centers in Taif is approximately {avg_wait_time_all:.2f} days."
 
                 if "highest waiting time" in prompt.lower():
                     highest_waiting_time_hospital = max(hospital_waiting_times, key=hospital_waiting_times.get)
                     highest_waiting_time = hospital_waiting_times[highest_waiting_time_hospital]
-                    with st.chat_message("assistant"):
-                        st.write(f"The hospital with the highest waiting time is {highest_waiting_time_hospital} with an average waiting time of approximately {highest_waiting_time:.2f} days.")
-                    st.session_state.messages.append({"role": "assistant", "content": f"The hospital with the highest waiting time is {highest_waiting_time_hospital} with an average waiting time of approximately {highest_waiting_time:.2f} days."})
+                    response += f" The hospital with the highest waiting time is {highest_waiting_time_hospital} with an average waiting time of approximately {highest_waiting_time:.2f} days."
 
             else:
-                with st.chat_message("assistant"):
-                    st.write("Could not calculate average waiting time due to lack of data.")
-                st.session_state.messages.append({"role": "assistant", "content": "Could not calculate average waiting time due to lack of data."})
+                response = "Could not calculate average waiting time due to lack of data."
+
+        # Display response if available
+        if response:
+            with st.chat_message("assistant"):
+                st.write(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
 
     elif any(keyword in prompt.lower() for keyword in list_all_hospitals_keywords):
         # Handle listing all hospitals
+        hospital_names = [hospital["name"] for hospital in hospital_data["hospitals"]]
+        response = "List of all hospitals:\n" + "\n".join(hospital_names)
         with st.chat_message("assistant"):
-            hospital_names = [hospital["name"] for hospital in hospital_data["hospitals"]]
-            st.write("List of all hospitals:")
-            for name in hospital_names:
-                st.write(name)
-            st.session_state.messages.append({"role": "assistant", "content": "\n".join(hospital_names)})
+            st.write(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
 
     elif hospital_match:
         # Handle hospital-specific questions
@@ -292,13 +292,13 @@ if prompt := st.chat_input("Enter your question here"):
         if prompt.lower().startswith("where is the location of"):
             if selected_hospital_data:
                 location = selected_hospital_data["location"]
-                with st.chat_message("assistant"):
-                    st.write(f"{hospital_name} is located in {location['city']}, {location['region']}, at {location['address']}.")
-                st.session_state.messages.append({"role": "assistant", "content": f"{hospital_name} is located in {location['city']}, {location['region']}, at {location['address']}."})
+                response = f"{hospital_name} is located in {location['city']}, {location['region']}, at {location['address']}."
             else:
-                with st.chat_message("assistant"):
-                    st.write(f"Could not find data for {hospital_name}.")
-                st.session_state.messages.append({"role": "assistant", "content": f"Could not find data for {hospital_name}."})
+                response = f"Could not find data for {hospital_name}."
+
+            with st.chat_message("assistant"):
+                st.write(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
 
         # Handle other hospital-specific questions using analysis_chain
         elif selected_hospital_data:
@@ -342,12 +342,16 @@ if prompt := st.chat_input("Enter your question here"):
             st.session_state.messages.append({"role": "assistant", "content": response})
 
         else:
+            response = f"Could not find data for {hospital_name}."
             with st.chat_message("assistant"):
-                st.write(f"Could not find data for {hospital_name}.")
-            st.session_state.messages.append({"role": "assistant", "content": f"Could not find data for {hospital_name}."})
+                st.write(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
 
     else:
         # Handle general questions
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                response
+                response = general_chain.run(question=prompt)
+                st.write(response)
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
