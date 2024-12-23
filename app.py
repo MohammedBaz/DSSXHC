@@ -17,24 +17,13 @@ import re
 with open("hospital_data.json", "r") as f:
     hospital_data = json.load(f)
 
-llm = OpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2)  # Use for general questions
-chat_llm = ChatOpenAI(openai_api_key=st.secrets["OpenAIKey"], temperature=0.2) # Use for data-specific analysis
+llm = OpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2)  # Use for general questions
+chat_llm = ChatOpenAI(openai_api_key="YOUR_API_KEY", temperature=0.2) # Use for data-specific analysis
 
 # --- Define Prompt Templates ---
 # General Question Prompt Template
 general_prompt_template = """
-You are a helpful AI assistant. Answer the following question as concisely as possible.
-
-Here are some examples:
-
-Question: What are the major causes of heart disease?
-Answer: The major causes of heart disease include high blood pressure, high cholesterol, smoking, diabetes, obesity, unhealthy diet, physical inactivity, and excessive alcohol use.
-
-Question: How can I improve my hospital's efficiency?
-Answer: You can improve your hospital's efficiency by implementing lean management principles, improving staff scheduling, optimizing patient flow, and investing in technology such as electronic health record (EHR) systems.
-
-Question: What is the best way to manage hospital staff schedules?
-Answer: The best way to manage hospital staff schedules is to use scheduling software that takes into account staff availability, patient volume, and regulatory requirements.
+You are a helpful AI assistant. Answer the following question as concisely as possible:
 
 Question: {question}
 """
@@ -80,9 +69,10 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
 
     *   If applicable, suggest additional data or analysis that could provide further insights.
 
-    Here are some examples:
+    Example of a question and answer:
 
     Question: Do you think it would be better to increase the bed capacity of hospital x to 100?
+
     Answer:
     ## Analysis:
     * The current bed capacity of Hospital X is 80.
@@ -110,7 +100,7 @@ human_message_prompt = HumanMessagePromptTemplate.from_template(
     * Analyze patient wait times in the surgery department.
     * Evaluate the efficiency of the surgical scheduling process.
 
-    Question: What is the average waiting time of Hospital1?
+    Question: what is the average waiting time of Hospital1?
     Answer:
     ## Analysis:
     *   Hospital1 has a total bed capacity of 400.
@@ -196,6 +186,7 @@ if prompt := st.chat_input("Enter your question here"):
     # Check for specific keywords or patterns
     waiting_time_keywords = ["waiting time", "wait time", "how long to wait"]
     hospital_specific_pattern = r"hospital\s*(\w+)"
+    list_all_hospitals_keywords = ["list all hospitals", "list all healthcare centers", "what hospitals do you know"]
 
     hospital_match = re.search(hospital_specific_pattern, prompt, re.IGNORECASE)
 
@@ -252,19 +243,19 @@ if prompt := st.chat_input("Enter your question here"):
                     st.write("Could not calculate average waiting time due to lack of data.")
                 st.session_state.messages.append({"role": "assistant", "content": "Could not calculate average waiting time due to lack of data."})
 
+    elif any(keyword in prompt.lower() for keyword in list_all_hospitals_keywords):
+        # Handle listing all hospitals
+        with st.chat_message("assistant"):
+            hospital_names = [hospital["name"] for hospital in hospital_data["hospitals"]]
+            st.write("List of all hospitals:")
+            for name in hospital_names:
+                st.write(name)
+            st.session_state.messages.append({"role": "assistant", "content": "\n".join(hospital_names)})
+
     elif hospital_match:
         # Handle hospital-specific questions
         hospital_name = f"Hospital{hospital_match.group(1)}"
         hospital_data_str = json.dumps(hospital_data, indent=2)
-
-        # Check if it's a request to list all hospital names
-        if prompt.lower() == "list the name of all hospitals":
-            with st.chat_message("assistant"):
-                hospital_names = [hospital["name"] for hospital in hospital_data["hospitals"]]
-                st.write("List of all hospitals:")
-                for name in hospital_names:
-                    st.write(name)
-                st.session_state.messages.append({"role": "assistant", "content": "\n".join(hospital_names)})
 
         # Find the selected hospital's data
         selected_hospital_data = None
